@@ -1,0 +1,89 @@
+🔵 1️⃣ relu(z)
+def relu(z):
+    return np.maximum(0, z)
+
+📌 What it does
+
+ReLU = Rectified Linear Unit
+
+ReLU(z)=max(0,z)
+
+Meaning:
+
+z value	    Output
+Positive	stays same
+Negative	becomes 0
+0	        stays 0
+
+🔢 Example
+z = np.array([-3, -1, 0, 2, 5])
+relu(z)
+
+
+Output:
+
+[0, 0, 0, 2, 5]
+
+
+It “turns off” negative neurons.
+
+🧠 Why we use it
+
+Without activation, the network is just:
+
+y = Wx + b
+
+
+Only straight lines → no intelligence.
+
+ReLU adds non-linearity, so network can learn complex patterns.
+
+🟣 2️⃣ relu_derivative(z)
+def relu_derivative(z):
+    return (z > 0).astype(float)
+
+
+This is used during backpropagation.
+
+📌 What it means
+
+We need derivative of ReLU:
+
+d/dz ReLU(z)  = {
+    1  if z>0
+    0  if z<=0
+}
+
+🔢 Example
+z = np.array([-3, -1, 0, 2, 5])
+relu_derivative(z)
+
+
+Output:
+
+[0, 0, 0, 1, 1]
+
+🧠 Meaning in backprop
+
+During error flow:
+
+If neuron was active (z>0) → it learns
+
+If neuron was off (z≤0) → no learning
+
+So ReLU makes learning selective.
+
+🎯 In simple words
+Function	          Role
+relu	        Decides which neurons fire
+relu_derivative	Decides which neurons are allowed to learn
+
+💡 Intuition
+
+Think of neurons as switches:
+
+z > 0 → switch ON → learning happens
+z ≤ 0 → switch OFF → no learning
+
+
+That’s why ReLU is fast and powerful.
