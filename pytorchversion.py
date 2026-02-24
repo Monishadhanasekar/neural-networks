@@ -4,7 +4,7 @@ import torch.optim as optim
 import matplotlib.pyplot as plt
 
 # ---------------- DATA ----------------
-X = torch.tensor([[1.0], [2.0], [3.0], [4.0]])
+X = torch.tensor([[1.0], [2.0], [3.0], [4.0]]) #defined as tensors for pyTorch
 y = torch.tensor([[2.0], [4.0], [6.0], [8.0]])
 
 # ---------------- MODEL ----------------
@@ -32,9 +32,9 @@ losses = []
 
 # ---------------- TRAINING LOOP ----------------
 for epoch in range(epochs):
-    y_pred = model(X)
-    loss = criterion(y_pred, y)
-    losses.append(loss.item())
+    y_pred = model(X) # Forward pass
+    loss = criterion(y_pred, y) # Compute loss
+    losses.append(loss.item()) 
 
     optimizer.zero_grad()  # Clear old gradients
     loss.backward()        # 🔥 Backprop happens automatically

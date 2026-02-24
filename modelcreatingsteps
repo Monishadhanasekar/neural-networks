@@ -1,0 +1,300 @@
+my question to chatgpt:
+
+see i will explain the steps. say if i am wrong. During training phase i.e while building the model,
+we define goals as context length 10, parameters 25 - then we collect datasets - remove unwanted stuff and assign tokens for the
+datasets and each tokens split into vectors and then word and positional encodings happens and then feed into transformer layer.
+Inside transformar layer, for each token, qkv assigned and attention happens and then it predicts the next word based on 
+probabillity score -> Then if it is wrong, loss function is calculated, backpropagation happens, then we update weights and 
+then again prediction happens and same process repeated until we probability score is correct. Then final model is ready. 
+Is this step correct and also in this vocabulary size and forward pass comes where?
+
+ Answer:
+
+ 🔹 STEP 1 — Define Goal
+
+You said:
+
+context length 10, parameters 25
+
+Almost correct — but small correction:
+
+Context length = 10 ✅ (how many previous tokens model sees)
+
+Parameters = 25 million (for example) ✅
+
+Parameters are:
+
+All weights
+
+All biases
+
+Embedding matrix
+
+Attention matrices
+
+Feedforward layers
+
+NOT number of tokens.
+
+🔹 STEP 2 — Collect Dataset
+
+Correct ✅
+
+Example:
+
+Millions of sentences
+
+🔹 STEP 3 — Cleaning & Tokenization
+
+Correct ✅
+
+You:
+
+Remove junk
+
+Train tokenizer
+
+Decide vocabulary size (example: 32,000)
+
+⚠ Important:
+
+Vocabulary size is decided when you train tokenizer.
+
+Example:
+
+Vocabulary size = 32,000
+
+
+This means:
+
+The model can only output one of these 32,000 tokens.
+
+🔹 STEP 4 — Convert Tokens to Vectors
+
+Correct ✅
+
+Tokens:
+
+[1423, 56, 9876]
+
+
+Embedding converts:
+
+(3,) → (3 × 512)
+
+
+Each token becomes 512-dimensional vector.
+
+🔹 STEP 5 — Add Positional Encoding
+
+Correct ✅
+
+Because transformer doesn't understand order.
+
+So:
+
+WordEmbedding + PositionalEmbedding
+
+
+Still shape:
+
+(3 × 512)
+
+🔹 STEP 6 — Feed Into Transformer
+
+Correct ✅
+
+Inside transformer:
+
+Q, K, V created
+
+Attention happens
+
+Feedforward layer
+
+LayerNorm
+
+Output shape stays:
+
+(3 × 512)
+
+🔹 STEP 7 — Predict Next Word
+
+Correct idea, but missing one piece.
+
+After transformer, we do:
+
+Linear layer (512 → 32000)
+
+
+This produces:
+
+(3 × 32000)
+
+
+These are logits.
+
+Then softmax gives probabilities.
+
+🔹 STEP 8 — Loss Calculation
+
+Correct ✅
+
+We compare predicted word with actual next word.
+
+Example:
+
+Target word = "powerful"
+
+Loss = CrossEntropyLoss
+
+🔹 STEP 9 — Backpropagation
+
+Correct ✅
+
+Calculate gradients
+
+Update weights
+
+Repeat millions of times
+
+🔹 STEP 10 — Model Ready
+
+Correct ✅
+
+After enough training, model learns language patterns.
+
+🔥 Now Let’s Answer Your Two Important Questions
+📌 WHERE DOES VOCABULARY SIZE COME?
+
+Vocabulary size affects TWO places:
+
+1️⃣ Embedding Layer
+nn.Embedding(32000, 512)
+
+
+Matrix size:
+
+(32000 × 512)
+
+
+One row per token.
+
+2️⃣ Final Linear Layer
+nn.Linear(512, 32000)
+
+
+Converts 512 → 32000 scores.
+
+So vocabulary size defines:
+
+How many words model knows
+
+How big embedding matrix is
+
+How many output scores are produced
+
+📌 WHERE DOES FORWARD PASS COME?
+
+Forward pass is EVERYTHING from:
+
+Input tokens
+→ embedding
+→ transformer
+→ linear
+→ logits
+→ loss calculation
+
+
+That entire flow is forward pass.
+
+Then:
+
+Backward pass = backpropagation.
+
+🧠 Full Training Loop (Clean Version)
+
+For each batch:
+
+🔵 Forward Pass
+Input IDs
+→ Embedding
+→ Add positional encoding
+→ Transformer layers
+→ Linear layer
+→ Logits
+→ Softmax
+→ Loss
+
+🔴 Backward Pass
+Loss.backward()
+Update weights
+
+
+Repeat millions of times.
+
+⚠ One Small Correction In Your Statement
+
+You said:
+
+same process repeated until probability score is correct
+
+Not exactly.
+
+It doesn't wait until correct.
+
+It minimizes loss gradually.
+
+It will NEVER be 100% perfect.
+
+It just becomes very good statistically.
+
+🎯 Final Clean Version Of Your Understanding
+
+Here is the corrected final flow:
+
+      1.  Define architecture (context length, layers, embedding size, parameters)
+
+      2.  Collect dataset
+
+      3.  Clean data
+
+      4.  Train tokenizer → define vocabulary size
+
+      5.  Convert text → token IDs
+
+      6.  Forward pass:
+
+            a. Embedding
+
+            b. Add positional encoding
+
+            c. Transformer layers (QKV attention)
+
+            d. Linear layer
+
+            e. Softmax
+
+      7. Compute loss
+
+      8. Backpropagation
+
+      9.  Update weights
+
+      10. Repeat until convergence
+
+🧠 BIG PICTURE CONNECTION
+
+Traditional NN:
+
+Input → Hidden → Output → Loss → Backprop
+
+
+Transformer:
+
+Tokens → Embedding → Transformer blocks → Linear → Loss → Backprop
+
+
+It is the SAME training principle.
+
+Transformer is just a different architecture.
