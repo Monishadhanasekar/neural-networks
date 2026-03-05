@@ -355,3 +355,107 @@ class TransformerBlock(nn.Module):
         x = x + self.ffn(self.ffn_norm(x))
         return x
 
+# MiniLLM: A small but modern language model
+
+class MiniLLM(nn.Module):
+    """
+    A small but modern language model.
+
+    Architecture: modern transformer with all 4 upgrades.
+    Training objective: next character prediction.
+    """
+    def __init__(self, vocab_size, d_model, n_layers, n_heads, n_kv_heads,
+                 ffn_hidden_dim, max_seq_len):
+        super().__init__()
+
+        self.d_model = d_model
+        self.max_seq_len = max_seq_len
+
+        # Token embedding (no positional embedding -- RoPE handles position)
+        self.token_emb = nn.Embedding(vocab_size, d_model)
+
+        # Transformer blocks
+        self.layers = nn.ModuleList([
+            TransformerBlock(d_model, n_heads, n_kv_heads, ffn_hidden_dim)
+            for _ in range(n_layers)
+        ])
+
+        # Final norm and output head
+        self.final_norm = RMSNorm(d_model)
+        self.lm_head = nn.Linear(d_model, vocab_size, bias=False)
+
+        # Weight tying: share embedding and output weights
+        self.lm_head.weight = self.token_emb.weight
+
+        # Precompute RoPE frequencies
+        head_dim = d_model // n_heads
+        rope_cos, rope_sin = precompute_rope_freqs(head_dim, max_seq_len)
+        self.register_buffer("rope_cos", rope_cos)
+        self.register_buffer("rope_sin", rope_sin)
+
+        # Initialize weights
+        self.apply(self._init_weights)
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            nn.init.normal_(module.weight, mean=0.0, std=0.02)
+        elif isinstance(module, nn.Embedding):
+            nn.init.normal_(module.weight, mean=0.0, std=0.02)
+
+    def forward(self, idx, targets=None):
+        b, seq_len = idx.shape
+
+        # Token embedding
+        x = self.token_emb(idx)
+
+        # Pass through transformer blocks
+        for layer in self.layers:
+            x = layer(x, self.rope_cos, self.rope_sin)
+
+        # Final norm + project to vocabulary
+        x = self.final_norm(x)
+        logits = self.lm_head(x)
+
+        loss = None
+        if targets is not None:
+            loss = F.cross_entropy(
+                logits.view(-1, logits.size(-1)),
+                targets.view(-1)
+            )
+
+        return logits, loss
+
+# --- Model Configuration ---
+
+config = {
+    "vocab_size":     vocab_size,
+    "d_model":        256,
+    "n_layers":       4,
+    "n_heads":        8,
+    "n_kv_heads":     2,
+    "ffn_hidden_dim": 680,
+    "max_seq_len":    256,
+}
+
+model = MiniLLM(**config).to(device)
+
+total_params = sum(p.numel() for p in model.parameters())
+trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+print("=" * 50)
+print("  MODEL SUMMARY")
+print("=" * 50)
+print(f"  Vocabulary:      {config['vocab_size']}")
+print(f"  Embedding dim:   {config['d_model']}")
+print(f"  Layers:          {config['n_layers']}")
+print(f"  Query heads:     {config['n_heads']}")
+print(f"  KV heads:        {config['n_kv_heads']} (GQA ratio: {config['n_heads']//config['n_kv_heads']}:1)")
+print(f"  FFN hidden dim:  {config['ffn_hidden_dim']}")
+print(f"  Context length:  {config['max_seq_len']}")
+print(f"  Head dim:        {config['d_model'] // config['n_heads']}")
+print(f"{'=' * 50}")
+print(f"  Total parameters:     {total_params:,}")
+print(f"  Trainable parameters: {trainable_params:,}")
+print(f"  Model size (approx):  {total_params * 4 / 1e6:.1f} MB (float32)")
+print(f"{'=' * 50}")
+
