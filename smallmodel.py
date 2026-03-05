@@ -331,3 +331,27 @@ plt.show()
 print("Key insight: SiLU is smooth unlike ReLU's hard cutoff at 0.")
 print("The gating mechanism lets the network LEARN which dimensions to keep.")
 
+# Transformer Block: Putting it all together
+
+class TransformerBlock(nn.Module):
+    """
+    One layer of a modern transformer.
+
+    Pre-norm architecture:
+      x -> RMSNorm -> GQA Attention -> + residual
+      x -> RMSNorm -> SwiGLU FFN     -> + residual
+    """
+    def __init__(self, d_model, n_heads, n_kv_heads, ffn_hidden_dim):
+        super().__init__()
+        self.attn_norm = RMSNorm(d_model)
+        self.attention = GroupedQueryAttention(d_model, n_heads, n_kv_heads)
+        self.ffn_norm  = RMSNorm(d_model)
+        self.ffn       = SwiGLU(d_model, ffn_hidden_dim)
+
+    def forward(self, x, rope_cos, rope_sin):
+        # Pre-norm -> Attention -> Residual
+        x = x + self.attention(self.attn_norm(x), rope_cos, rope_sin)
+        # Pre-norm -> FFN -> Residual
+        x = x + self.ffn(self.ffn_norm(x))
+        return x
+
