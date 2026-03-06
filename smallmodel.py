@@ -8,6 +8,8 @@ import math
 import time
 import os
 
+TRAIN_MODEL = False
+
 device = "mps" if torch.backends.mps.is_available() else "cpu"
 # macbook : "mps"
 print(f"Using device: {device}")
@@ -468,65 +470,70 @@ EVAL_INTERVAL = 250
 EVAL_STEPS = 20
 LOG_INTERVAL = 50
 
-optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
+if TRAIN_MODEL:
 
-@torch.no_grad()
-def estimate_loss():
-    """Estimate loss on train and val splits."""
-    model.eval()
-    out = {}
-    for split in ["train", "val"]:
-        losses = []
-        for _ in range(EVAL_STEPS):
-            xb, yb = get_batch(split, BATCH_SIZE, CONTEXT_LEN)
-            _, loss = model(xb, yb)
-            losses.append(loss.item())
-        out[split] = sum(losses) / len(losses)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
+
+    @torch.no_grad()
+    def estimate_loss():
+        """Estimate loss on train and val splits."""
+        model.eval()
+        out = {}
+        for split in ["train", "val"]:
+            losses = []
+            for _ in range(EVAL_STEPS):
+                xb, yb = get_batch(split, BATCH_SIZE, CONTEXT_LEN)
+                _, loss = model(xb, yb)
+                losses.append(loss.item())
+            out[split] = sum(losses) / len(losses)
+        model.train()
+        return out
+
+    # --- Training Loop ---
+    print("Starting training...")
+    print(f"  {MAX_STEPS} steps, batch_size={BATCH_SIZE}, context_len={CONTEXT_LEN}")
+    print(f"  Evaluating every {EVAL_INTERVAL} steps")
+    print("-" * 60)
+
+    train_losses = []
+    val_losses = []
+    step_log = []
+    start_time = time.time()
+
     model.train()
-    return out
+    for step in range(MAX_STEPS):
+        xb, yb = get_batch("train", BATCH_SIZE, CONTEXT_LEN)
 
-# --- Training Loop ---
-print("Starting training...")
-print(f"  {MAX_STEPS} steps, batch_size={BATCH_SIZE}, context_len={CONTEXT_LEN}")
-print(f"  Evaluating every {EVAL_INTERVAL} steps")
-print("-" * 60)
+        logits, loss = model(xb, yb)
 
-train_losses = []
-val_losses = []
-step_log = []
-start_time = time.time()
+        optimizer.zero_grad()
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        optimizer.step()
 
-model.train()
-for step in range(MAX_STEPS):
-    xb, yb = get_batch("train", BATCH_SIZE, CONTEXT_LEN)
-
-    logits, loss = model(xb, yb)
-
-    optimizer.zero_grad()
-    loss.backward()
-    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-    optimizer.step()
-
-    if step % LOG_INTERVAL == 0:
-        elapsed = time.time() - start_time
-        print(f"  Step {step:5d}/{MAX_STEPS} | Loss: {loss.item():.4f} | Time: {elapsed:.0f}s")
-
-    if step % EVAL_INTERVAL == 0 or step == MAX_STEPS - 1:
-        losses = estimate_loss()
-        train_losses.append(losses["train"])
-        val_losses.append(losses["val"])
-        step_log.append(step)
-        if step > 0:
+        if step % LOG_INTERVAL == 0:
             elapsed = time.time() - start_time
-            steps_per_sec = step / elapsed
-            remaining = (MAX_STEPS - step) / steps_per_sec
-            print(f"  >>> Eval @ step {step}: train={losses['train']:.4f}, val={losses['val']:.4f} | ~{remaining:.0f}s remaining")
+            print(f"  Step {step:5d}/{MAX_STEPS} | Loss: {loss.item():.4f} | Time: {elapsed:.0f}s")
 
-total_time = time.time() - start_time
-print("-" * 60)
-print(f"Training complete! Total time: {total_time:.0f}s ({total_time/60:.1f} min)")
-print(f"Final train loss: {train_losses[-1]:.4f}")
-print(f"Final val loss:   {val_losses[-1]:.4f}")
+        if step % EVAL_INTERVAL == 0 or step == MAX_STEPS - 1:
+            losses = estimate_loss()
+            train_losses.append(losses["train"])
+            val_losses.append(losses["val"])
+            step_log.append(step)
+            if step > 0:
+                elapsed = time.time() - start_time
+                steps_per_sec = step / elapsed
+                remaining = (MAX_STEPS - step) / steps_per_sec
+                print(f"  >>> Eval @ step {step}: train={losses['train']:.4f}, val={losses['val']:.4f} | ~{remaining:.0f}s remaining")
+
+    total_time = time.time() - start_time
+    print("-" * 60)
+    print(f"Training complete! Total time: {total_time:.0f}s ({total_time/60:.1f} min)")
+    print(f"Final train loss: {train_losses[-1]:.4f}")
+    print(f"Final val loss:   {val_losses[-1]:.4f}")
+
+    torch.save(model.state_dict(), "mini_llm_weights.pth")
+    print("Model saved!")
 
 # --- Plot Loss Curve ---
 fig, ax = plt.subplots(figsize=(10, 5))
@@ -542,42 +549,10 @@ ax.grid(True, alpha=0.3)
 plt.tight_layout()
 plt.show()
 
-# --- Text Generation ---
 
-@torch.no_grad()
-def generate(model, prompt, max_new_tokens=500, temperature=0.8):
-    """
-    Generate text autoregressively.
-
-    temperature controls randomness:
-      low (0.3)  -> conservative, repetitive
-      mid (0.8)  -> balanced
-      high (1.2) -> creative, chaotic
-    """
+if not TRAIN_MODEL:
+    model.load_state_dict(torch.load("smallmodel_weights.pth", map_location=device))
     model.eval()
-    tokens = encode(prompt)
-    tokens = torch.tensor(tokens, dtype=torch.long, device=device).unsqueeze(0)
 
-    for _ in range(max_new_tokens):
-        context = tokens[:, -config["max_seq_len"]:]
-        logits, _ = model(context)
-        logits = logits[:, -1, :] / temperature
-        probs = F.softmax(logits, dim=-1)
-        next_token = torch.multinomial(probs, num_samples=1)
-        tokens = torch.cat([tokens, next_token], dim=1)
 
-    return decode(tokens[0].tolist())
 
-# --- Generate at different temperatures ---
-prompt = "ROMEO:"
-
-print("=" * 60)
-print(f"  PROMPT: {prompt!r}")
-print("=" * 60)
-
-for temp in [0.5, 0.8, 1.0, 1.2]:
-    print(f"\n{'_' * 60}")
-    print(f"  Temperature = {temp}")
-    print(f"{'_' * 60}")
-    output = generate(model, prompt, max_new_tokens=300, temperature=temp)
-    print(output)
