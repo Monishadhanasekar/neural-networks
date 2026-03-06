@@ -568,3 +568,16 @@ def generate(model, prompt, max_new_tokens=500, temperature=0.8):
 
     return decode(tokens[0].tolist())
 
+# --- Generate at different temperatures ---
+prompt = "ROMEO:"
+
+print("=" * 60)
+print(f"  PROMPT: {prompt!r}")
+print("=" * 60)
+
+for temp in [0.5, 0.8, 1.0, 1.2]:
+    print(f"\n{'_' * 60}")
+    print(f"  Temperature = {temp}")
+    print(f"{'_' * 60}")
+    output = generate(model, prompt, max_new_tokens=300, temperature=temp)
+    print(output)
