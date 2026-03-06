@@ -459,3 +459,86 @@ print(f"  Trainable parameters: {trainable_params:,}")
 print(f"  Model size (approx):  {total_params * 4 / 1e6:.1f} MB (float32)")
 print(f"{'=' * 50}")
 
+# --- Training Hyperparameters ---
+BATCH_SIZE = 64
+CONTEXT_LEN = config["max_seq_len"]
+LEARNING_RATE = 3e-4
+MAX_STEPS = 3000
+EVAL_INTERVAL = 250
+EVAL_STEPS = 20
+LOG_INTERVAL = 50
+
+optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
+
+@torch.no_grad()
+def estimate_loss():
+    """Estimate loss on train and val splits."""
+    model.eval()
+    out = {}
+    for split in ["train", "val"]:
+        losses = []
+        for _ in range(EVAL_STEPS):
+            xb, yb = get_batch(split, BATCH_SIZE, CONTEXT_LEN)
+            _, loss = model(xb, yb)
+            losses.append(loss.item())
+        out[split] = sum(losses) / len(losses)
+    model.train()
+    return out
+
+# --- Training Loop ---
+print("Starting training...")
+print(f"  {MAX_STEPS} steps, batch_size={BATCH_SIZE}, context_len={CONTEXT_LEN}")
+print(f"  Evaluating every {EVAL_INTERVAL} steps")
+print("-" * 60)
+
+train_losses = []
+val_losses = []
+step_log = []
+start_time = time.time()
+
+model.train()
+for step in range(MAX_STEPS):
+    xb, yb = get_batch("train", BATCH_SIZE, CONTEXT_LEN)
+
+    logits, loss = model(xb, yb)
+
+    optimizer.zero_grad()
+    loss.backward()
+    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+    optimizer.step()
+
+    if step % LOG_INTERVAL == 0:
+        elapsed = time.time() - start_time
+        print(f"  Step {step:5d}/{MAX_STEPS} | Loss: {loss.item():.4f} | Time: {elapsed:.0f}s")
+
+    if step % EVAL_INTERVAL == 0 or step == MAX_STEPS - 1:
+        losses = estimate_loss()
+        train_losses.append(losses["train"])
+        val_losses.append(losses["val"])
+        step_log.append(step)
+        if step > 0:
+            elapsed = time.time() - start_time
+            steps_per_sec = step / elapsed
+            remaining = (MAX_STEPS - step) / steps_per_sec
+            print(f"  >>> Eval @ step {step}: train={losses['train']:.4f}, val={losses['val']:.4f} | ~{remaining:.0f}s remaining")
+
+total_time = time.time() - start_time
+print("-" * 60)
+print(f"Training complete! Total time: {total_time:.0f}s ({total_time/60:.1f} min)")
+print(f"Final train loss: {train_losses[-1]:.4f}")
+print(f"Final val loss:   {val_losses[-1]:.4f}")
+
+# --- Plot Loss Curve ---
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.plot(step_log, train_losses, "b-o", label="Train", markersize=4)
+ax.plot(step_log, val_losses, "r-o", label="Validation", markersize=4)
+ax.axhline(y=math.log(vocab_size), color="gray", linestyle="--", alpha=0.5,
+           label=f"Random guessing ({math.log(vocab_size):.2f})")
+ax.set_xlabel("Training Step")
+ax.set_ylabel("Loss")
+ax.set_title("Training Progress: From Random Noise to Shakespeare")
+ax.legend()
+ax.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()
+
