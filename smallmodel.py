@@ -535,24 +535,61 @@ if TRAIN_MODEL:
     torch.save(model.state_dict(), "mini_llm_weights.pth")
     print("Model saved!")
 
-# --- Plot Loss Curve ---
-fig, ax = plt.subplots(figsize=(10, 5))
-ax.plot(step_log, train_losses, "b-o", label="Train", markersize=4)
-ax.plot(step_log, val_losses, "r-o", label="Validation", markersize=4)
-ax.axhline(y=math.log(vocab_size), color="gray", linestyle="--", alpha=0.5,
-           label=f"Random guessing ({math.log(vocab_size):.2f})")
-ax.set_xlabel("Training Step")
-ax.set_ylabel("Loss")
-ax.set_title("Training Progress: From Random Noise to Shakespeare")
-ax.legend()
-ax.grid(True, alpha=0.3)
-plt.tight_layout()
-plt.show()
+    # --- Plot Loss Curve ---
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.plot(step_log, train_losses, "b-o", label="Train", markersize=4)
+    ax.plot(step_log, val_losses, "r-o", label="Validation", markersize=4)
+    ax.axhline(y=math.log(vocab_size), color="gray", linestyle="--", alpha=0.5,
+            label=f"Random guessing ({math.log(vocab_size):.2f})")
+    ax.set_xlabel("Training Step")
+    ax.set_ylabel("Loss")
+    ax.set_title("Training Progress: From Random Noise to Shakespeare")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.show()
 
-
-if not TRAIN_MODEL:
-    model.load_state_dict(torch.load("smallmodel_weights.pth", map_location=device))
+else:
+    model.load_state_dict(torch.load("mini_llm_weights.pth", map_location=device))
     model.eval()
 
+# --- Text Generation Function ---
 
+@torch.no_grad()
+def generate(model, prompt, max_new_tokens=500, temperature=0.8):
+    """
+    Generate text autoregressively.
+
+    temperature controls randomness:
+      low (0.3)  -> conservative, repetitive
+      mid (0.8)  -> balanced
+      high (1.2) -> creative, chaotic
+    """
+    model.eval()
+    tokens = encode(prompt)
+    tokens = torch.tensor(tokens, dtype=torch.long, device=device).unsqueeze(0)
+
+    for _ in range(max_new_tokens):
+        context = tokens[:, -config["max_seq_len"]:]
+        logits, _ = model(context)
+        logits = logits[:, -1, :] / temperature
+        probs = F.softmax(logits, dim=-1)
+        next_token = torch.multinomial(probs, num_samples=1)
+        tokens = torch.cat([tokens, next_token], dim=1)
+
+    return decode(tokens[0].tolist())
+
+# --- Generate at different temperatures ---
+prompt = "ROMEO:"
+
+print("=" * 60)
+print(f"  PROMPT: {prompt!r}")
+print("=" * 60)
+
+for temp in [0.5, 0.8, 1.0, 1.2]:
+    print(f"\n{'_' * 60}")
+    print(f"  Temperature = {temp}")
+    print(f"{'_' * 60}")
+    output = generate(model, prompt, max_new_tokens=300, temperature=temp)
+    print(output)
 
