@@ -542,3 +542,29 @@ ax.grid(True, alpha=0.3)
 plt.tight_layout()
 plt.show()
 
+# --- Text Generation ---
+
+@torch.no_grad()
+def generate(model, prompt, max_new_tokens=500, temperature=0.8):
+    """
+    Generate text autoregressively.
+
+    temperature controls randomness:
+      low (0.3)  -> conservative, repetitive
+      mid (0.8)  -> balanced
+      high (1.2) -> creative, chaotic
+    """
+    model.eval()
+    tokens = encode(prompt)
+    tokens = torch.tensor(tokens, dtype=torch.long, device=device).unsqueeze(0)
+
+    for _ in range(max_new_tokens):
+        context = tokens[:, -config["max_seq_len"]:]
+        logits, _ = model(context)
+        logits = logits[:, -1, :] / temperature
+        probs = F.softmax(logits, dim=-1)
+        next_token = torch.multinomial(probs, num_samples=1)
+        tokens = torch.cat([tokens, next_token], dim=1)
+
+    return decode(tokens[0].tolist())
+
