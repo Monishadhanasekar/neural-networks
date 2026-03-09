@@ -9,7 +9,7 @@ import time
 import os
 
 
-TRAIN_MODEL = True
+TRAIN_MODEL = False
 
 device = "mps" if torch.backends.mps.is_available() else "cpu"
 # macbook : "mps"
