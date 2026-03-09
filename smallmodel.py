@@ -593,3 +593,18 @@ for temp in [0.5, 0.8, 1.0, 1.2]:
     output = generate(model, prompt, max_new_tokens=300, temperature=temp)
     print(output)
 
+# --- Try different prompts ---
+prompts = [
+  """
+ROMEO:
+Good night, good night! Parting is such sweet sorrow.
+JULIET:
+"""
+]
+
+for p in prompts:
+    print(f"\n{'=' * 60}")
+    print(f"  PROMPT: {p!r}")
+    print(f"{'=' * 60}")
+    output = generate(model, p, max_new_tokens=200, temperature=0.8)
+    print(output)
