@@ -27,7 +27,7 @@ dataset = load_dataset("roneneldan/TinyStories")
 stories = dataset["train"]["text"]
 
 # You can limit size to keep training fast
-stories = stories[:20000]   # use first 20k stories (optional)
+stories = stories[:5000]   # use first 5k stories (optional)
 
 text = "\n".join(stories)
 
@@ -448,14 +448,13 @@ class MiniLLM(nn.Module):
 
 config = {
     "vocab_size": vocab_size,
-    "d_model": 192,
+    "d_model": 128,
     "n_layers": 4,
-    "n_heads": 6,
+    "n_heads": 4,
     "n_kv_heads": 2,
-    "ffn_hidden_dim": 512,
+    "ffn_hidden_dim": 384,
     "max_seq_len": 128,
 }
-
 
 
 model = MiniLLM(**config).to(device)
