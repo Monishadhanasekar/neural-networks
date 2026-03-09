@@ -596,3 +596,13 @@ def generate(model, prompt, max_new_tokens=500, temperature=0.8):
         tokens = torch.cat([tokens, next_token], dim=1)
 
     return decode(tokens[0].tolist())
+
+print("\n--- Story Continuation Test ---")
+print(generate(model, "Once upon a time there was a little boy named Jack who lived in a small village.", 200))
+
+print("\n--- Dialogue Test ---")
+print(generate(model, "Tom said, 'I lost my toy.' His friend replied,", 150))
+
+print("\n--- Cause and Effect Test ---")
+print(generate(model, "The little dragon was afraid to fly because", 150))
+
