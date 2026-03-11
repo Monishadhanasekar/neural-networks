@@ -9,6 +9,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+#Part 1: Setup and first API calls to free model
+
 # setup openrouter
 
 client = OpenAI(
@@ -89,3 +91,97 @@ print(f"\nTurn 2: {turn2[:200]}")
 print(f"  Prompt tokens: {r2.usage.prompt_tokens}")
 
 print(f"\n→ Prompt tokens grew from {r1.usage.prompt_tokens} to {r2.usage.prompt_tokens}")
+
+#Part2 : Function calling with tool model
+
+tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_weather",
+            "description": "Get current weather for a city. Returns temperature and conditions.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "city": {"type": "string", "description": "City name, e.g. 'Tokyo'"}
+                },
+                "required": ["city"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "calculate",
+            "description": "Evaluate a mathematical expression and return the result.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "expression": {"type": "string", "description": "Math expression, e.g. '(5 + 3) * 2'"}
+                },
+                "required": ["expression"]
+            }
+        }
+    }
+]
+
+r = client.chat.completions.create(
+    model=TOOL_MODEL,
+    messages=[{"role": "user", "content": "What's the weather in Tokyo?"}],
+    tools=tools,
+    temperature=0,
+)
+
+msg = r.choices[0].message
+print(f"Finish reason: {r.choices[0].finish_reason}")
+print(f"Content: {msg.content}")
+print(f"Tool calls: {msg.tool_calls}")
+
+if msg.tool_calls:
+    tc = msg.tool_calls[0]
+    print(f"\n→ Model wants to call: {tc.function.name}({tc.function.arguments})")
+    print("  It GENERATED JSON requesting a function. Our code must execute it.")
+
+#Complete the tool call loop
+
+#User → Model requests tool → OUR code runs tool → Result back to model → Final answer
+
+# Fake tool implementations
+def get_weather(city):
+    fake = {
+        "Tokyo": {"temp": "22°C", "condition": "partly cloudy"},
+        "London": {"temp": "14°C", "condition": "rainy"},
+        "Delhi": {"temp": "38°C", "condition": "sunny"},
+    }
+    return json.dumps(fake.get(city, {"temp": "unknown", "condition": "unknown"}))
+
+def calculate(expression):
+    try:
+        allowed = set("0123456789+-*/.() ")
+        if not all(c in allowed for c in expression):
+            return json.dumps({"error": "Invalid characters"})
+        return json.dumps({"result": eval(expression)})
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+TOOL_FNS = {"get_weather": get_weather, "calculate": calculate} #Tool Registry - maps tool names to our Python functions that implement them
+
+# Execute the tool call
+if msg.tool_calls:
+    tc = msg.tool_calls[0]
+    fn = TOOL_FNS[tc.function.name]
+    result = fn(**json.loads(tc.function.arguments))
+    print(f"Tool result: {result}")
+
+    # Feed result back to model
+    messages = [
+        {"role": "user", "content": "What's the weather in Tokyo?"},
+        msg,
+        {"role": "tool", "tool_call_id": tc.id, "content": result}
+    ]
+
+    r2 = client.chat.completions.create(
+        model=TOOL_MODEL, messages=messages, tools=tools
+    )
+    print(f"\nFinal answer: {r2.choices[0].message.content}")
+    print("\n→ Full cycle: user → model requests tool → we run it → model answers")
