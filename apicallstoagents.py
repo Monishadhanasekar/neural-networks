@@ -185,3 +185,192 @@ if msg.tool_calls:
     )
     print(f"\nFinal answer: {r2.choices[0].message.content}")
     print("\n→ Full cycle: user → model requests tool → we run it → model answers")
+
+#Part 3: Build a ReAct Agent From Scratch
+
+#The ReAct pattern: THINK → ACT → OBSERVE → repeat until done
+
+REACT_SYSTEM_PROMPT = """You are a helpful assistant that solves problems step by step using tools.
+
+You have access to these tools:
+{tool_descriptions}
+
+## How to respond
+
+When you need to use a tool, respond in EXACTLY this format:
+
+THOUGHT: <your reasoning about what to do next>
+ACTION: <tool_name>
+ACTION_INPUT: <arguments as valid JSON>
+
+When you have enough information for the final answer:
+
+THOUGHT: <your final reasoning>
+FINAL_ANSWER: <your complete answer to the user>
+
+## Rules
+- Always start with THOUGHT
+- Use only ONE action per turn
+- Wait for the OBSERVATION before continuing
+- If a tool returns an error, reason about it and try a different approach
+- Be concise in your thoughts
+"""
+
+# Real tools
+# Wikipedia search hits a real API. The calculator does real math. These are the "hands" of our agent.
+
+def search_wikipedia(query):
+    """Search Wikipedia and return a summary."""
+    url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{query.replace(' ', '_')}"
+    try:
+        r = requests.get(url, timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            return json.dumps({
+                "title": data.get("title", ""),
+                "summary": data.get("extract", "No summary found.")[:800]
+            })
+        return json.dumps({"error": f"Page not found for '{query}'. Try a different term."})
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+def calculate_math(expression):
+    """Safely evaluate a math expression."""
+    try:
+        allowed = set("0123456789+-*/.() eE")
+        if not all(c in allowed for c in expression):
+            return json.dumps({"error": f"Invalid characters in: {expression}"})
+        result = eval(expression)
+        return json.dumps({"expression": expression, "result": round(result, 6)})
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+def get_current_date():
+    """Get the current date and time."""
+    from datetime import datetime
+    return json.dumps({"datetime": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+
+# Tool registry
+TOOLS = {
+    "search_wikipedia": {
+        "fn": search_wikipedia,
+        "desc": "search_wikipedia(query: str) — Search Wikipedia. Use simple topic names like 'France' or 'Albert Einstein'."
+    },
+    "calculate": {
+        "fn": calculate_math,
+        "desc": "calculate(expression: str) — Evaluate a math expression. Example: '(5 + 3) * 2.5'"
+    },
+    "get_current_date": {
+        "fn": get_current_date,
+        "desc": "get_current_date() — Get today's date and time. Pass empty JSON: {}"
+    },
+}
+
+print(f"Tools registered: {list(TOOLS.keys())}")
+
+# THE AGENT LOOP
+
+def run_agent(user_query, max_iterations=10, verbose=True):
+    """
+    A ReAct agent from scratch.
+    No frameworks. Just an LLM + tools + a loop.
+    """
+    # Build system prompt with tool descriptions
+    tool_desc = "\n".join(f"- {t['desc']}" for t in TOOLS.values())
+    system = REACT_SYSTEM_PROMPT.format(tool_descriptions=tool_desc)
+
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": user_query},
+    ]
+
+    if verbose:
+        print(f"\n{'='*60}")
+        print(f"🧑 USER: {user_query}")
+        print(f"{'='*60}")
+
+    for i in range(max_iterations):
+        if verbose:
+            print(f"\n--- Iteration {i+1}/{max_iterations} ---")
+
+        # STEP 1: Ask the LLM what to do
+        response = client.chat.completions.create(
+            model=FREE_MODEL,
+            messages=messages,
+            temperature=0,
+            max_tokens=800,
+        )
+
+        text = response.choices[0].message.content or ""
+        messages.append({"role": "assistant", "content": text})
+
+        # STEP 2: Parse the response
+        thought_match = re.search(
+            r"THOUGHT:\s*(.+?)(?=ACTION:|FINAL_ANSWER:|$)", text, re.DOTALL
+        )
+        thought = thought_match.group(1).strip() if thought_match else ""
+
+        if verbose and thought:
+            print(f"💭 THOUGHT: {thought[:200]}")
+
+        # Check for FINAL_ANSWER
+        if "FINAL_ANSWER:" in text:
+            answer = text.split("FINAL_ANSWER:")[-1].strip()
+            if verbose:
+                print(f"\n{'='*60}")
+                print(f"✅ AGENT FINISHED in {i+1} iteration(s)")
+                print(f"{'='*60}")
+                print(f"📝 ANSWER: {answer[:500]}")
+            return {"answer": answer, "iterations": i + 1}
+
+        # Check for ACTION
+        action_match = re.search(r"ACTION:\s*(\w+)", text)
+        input_match = re.search(r"ACTION_INPUT:\s*(.+?)(?:\n|$)", text, re.DOTALL)
+
+        if not action_match:
+            messages.append({
+                "role": "user",
+                "content": "Please respond with either ACTION + ACTION_INPUT or FINAL_ANSWER."
+            })
+            if verbose:
+                print("⚠️  Format issue — nudging...")
+            continue
+
+        tool_name = action_match.group(1).strip()
+        raw_input = input_match.group(1).strip() if input_match else "{}"
+
+        # STEP 3: Execute the tool
+        if tool_name not in TOOLS:
+            observation = json.dumps({
+                "error": f"Unknown tool '{tool_name}'. Available: {list(TOOLS.keys())}"
+            })
+        else:
+            try:
+                if raw_input.startswith("{"):
+                    args = json.loads(raw_input)
+                else:
+                    args = {"query": raw_input.strip("\"'")}
+                observation = TOOLS[tool_name]["fn"](**args)
+            except Exception as e:
+                observation = json.dumps({"error": f"Failed to call {tool_name}: {e}"})
+
+        if verbose:
+            print(f"🔧 ACTION: {tool_name}({raw_input[:80]})")
+            obs_preview = observation[:200] + "..." if len(observation) > 200 else observation
+            print(f"👁️  OBSERVATION: {obs_preview}")
+
+        # STEP 4: Feed observation back
+        messages.append({"role": "user", "content": f"OBSERVATION: {observation}"})
+
+    if verbose:
+        print(f"\n⚠️  Max iterations ({max_iterations}) reached.")
+    return {"answer": "Max iterations reached.", "iterations": max_iterations}
+
+result = run_agent("What is 123*123?")
+result = run_agent(
+    "Search Wikipedia for 'Wakanda' and tell me about its history."
+)
+result = run_agent(
+    "Who was born first: the person who wrote 'Romeo and Juliet' "
+    "or the person who painted the Mona Lisa? By how many years?"
+)
