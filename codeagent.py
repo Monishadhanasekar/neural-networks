@@ -83,6 +83,18 @@ def list_files(path="."):
     except Exception as e:
         return json.dumps({"error": str(e)})
 
+def calculate_math(expression):
+    """Safely evaluate a math expression."""
+    try:
+        allowed = set("0123456789+-*/.() eE")
+        if not all(c in allowed for c in expression):
+            return json.dumps({"error": f"Invalid characters in: {expression}"})
+        result = eval(expression)
+        return json.dumps({"expression": expression, "result": round(result, 6)})
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+
 CODE_TOOLS = {
     "read_file": {"fn": read_file, "desc": "read_file(path: str) — Read a file and return its contents."},
     "write_file": {"fn": write_file, "desc": 'write_file(path: str, content: str) — Write content to a file.'},
@@ -201,9 +213,9 @@ result = run_code_agent(
     "1, 2, 13, 15, 97, 100. Print the results."
 )
 
-# result = run_code_agent(
-#     "Create a CSV file called 'employees.csv' with columns: name, department, salary. "
-#     "Add at least 10 rows of realistic data across 3 departments (Engineering, Sales, Marketing). "
-#     "Then write a script that reads the CSV, calculates average salary per department, "
-#     "and prints a formatted report."
-# )
+result = run_code_agent(
+    "Create a CSV file called 'employees.csv' with columns: name, department, salary. "
+    "Add at least 10 rows of realistic data across 3 departments (Engineering, Sales, Marketing). "
+    "Then write a script that reads the CSV, calculates average salary per department, "
+    "and prints a formatted report."
+)
