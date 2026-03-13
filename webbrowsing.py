@@ -6,6 +6,7 @@ import requests
 import subprocess
 from openai import OpenAI
 from dotenv import load_dotenv
+from bs4 import BeautifulSoup
 
 load_dotenv()
 
@@ -47,8 +48,9 @@ def fetch_webpage(url):
         if r.status_code != 200:
             return json.dumps({"error": f"Failed to fetch page: {r.status_code}"})
 
+        soup = BeautifulSoup(r.text, "html.parser")
         # Limit page size to avoid huge token usage
-        content = r.text[:5000]
+        content = soup.get_text()[:5000]
 
         return json.dumps({
             "url": url,
@@ -159,4 +161,3 @@ def run_native_agent(user_query, max_iterations=10, verbose=True):
 result = run_native_agent(
     "Fetch and summarize this webpage https://en.wikipedia.org/wiki/Artificial_intelligence"
 )
-
