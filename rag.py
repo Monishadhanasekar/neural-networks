@@ -477,3 +477,26 @@ def chunk_recursive(text: str, max_size: int = 200) -> List[str]:
                 chunks.append(" ".join(current))
 
     return [c for c in chunks if len(c.split()) > 10]
+
+# --- Compare them ---
+
+sample = DOCUMENTS[0]["content"]
+
+fixed = chunk_fixed(sample, chunk_size=100, overlap=20)
+recursive = chunk_recursive(sample, max_size=100)
+
+print("=" * 60)
+print("FIXED-SIZE CHUNKING")
+print("=" * 60)
+for i, c in enumerate(fixed[:3]):
+    print(f"\nChunk {i+1} ({len(c.split())} words):")
+    print(c[:150], "...")
+
+print("\n" + "=" * 60)
+print("RECURSIVE CHUNKING")
+print("=" * 60)
+for i, c in enumerate(recursive[:3]):
+    print(f"\nChunk {i+1} ({len(c.split())} words):")
+    print(c[:150], "...")
+
+print("\n💡 Fixed cuts mid-thought. Recursive respects paragraph boundaries.")
