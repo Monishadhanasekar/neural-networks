@@ -167,3 +167,232 @@ Many modern AI products use RAG:
    Notion AI
 
    Slack AI
+
+RAG pipeline explained:
+
+1️⃣ Documents
+
+   These are the source knowledge you want the AI to use.
+
+   Examples:
+
+      PDFs
+
+      company policy docs
+
+      website pages
+
+      product manuals
+
+      knowledge base articles
+
+   Example document:
+
+   Refund Policy Document
+
+   Customers may request a refund within 30 days of purchase.
+   Refunds are processed within 5 business days after approval.
+   Digital products are not refundable.
+
+
+   At this stage the system only stores raw text.
+
+2️⃣ Chunking
+
+   LLMs cannot process huge documents efficiently, so we split documents into smaller pieces called chunks.
+
+   Example:
+
+   Original document:
+
+   Customers may request a refund within 30 days of purchase.
+   Refunds are processed within 5 business days after approval.
+   Digital products are not refundable.
+
+
+   After chunking:
+
+   Chunk 1:
+   Customers may request a refund within 30 days of purchase.
+
+   Chunk 2:
+   Refunds are processed within 5 business days after approval.
+
+   Chunk 3:
+   Digital products are not refundable.
+
+
+   Typical chunk size:
+
+   200–500 words
+
+
+   Why chunking is needed:
+
+      better search accuracy
+
+      smaller context for LLM
+
+      faster retrieval
+
+3️⃣ Embeddings
+
+   Each chunk is converted into a vector representation using an embedding model.
+
+   Embedding = a list of numbers representing meaning of text.
+
+   Example:
+
+   Chunk:
+   "Customers may request a refund within 30 days"
+
+
+   Embedding vector:
+
+   [0.21, -0.44, 0.18, 0.77, ... 1536 numbers]
+
+
+   These vectors capture semantic meaning.
+
+   Example:
+
+   Text similarity:
+
+   "refund policy"
+   "how do I get my money back"
+
+
+   Even though words are different, embeddings will be very close in vector space.
+
+   Embedding models:
+
+      OpenAI Embeddings
+
+      SentenceTransformers
+
+      Cohere Embed
+
+4️⃣ Vector Database
+
+   The embeddings are stored inside a vector database.
+
+   Example entry:
+
+   Vector: [0.21, -0.44, 0.18, ...]
+   Text: "Customers may request a refund within 30 days"
+
+
+   Vector DB stores thousands or millions of these vectors.
+
+   Popular vector databases:
+
+      FAISS
+
+      Pinecone
+
+      Chroma
+
+      Weaviate
+
+   The database enables fast similarity search.
+
+5️⃣ User Query
+
+   User asks a question.
+
+   Example:
+
+   "How long do I have to request a refund?"
+
+
+   The system converts this query into an embedding vector.
+
+   Example:
+
+   [0.25, -0.41, 0.19, ...]
+
+
+   Now we compare this vector with stored document vectors.
+
+6️⃣ Similarity Search
+
+   The system finds vectors that are closest to the query vector.
+
+   Similarity methods:
+
+      cosine similarity
+
+      dot product
+
+      Euclidean distance
+
+   Example:
+
+   Query:
+
+   "How long do I have to request a refund?"
+
+
+   Vector search result:
+
+   Chunk 1:
+   Customers may request a refund within 30 days of purchase.
+
+
+   Score:
+
+   Similarity = 0.91
+
+
+   The system retrieves top matches.
+
+7️⃣ Top Relevant Chunks
+
+   The most relevant chunks are selected.
+
+   Example:
+
+   Top 3 chunks:
+
+   1.
+   Customers may request a refund within 30 days of purchase.
+
+   2.
+   Refunds are processed within 5 business days after approval.
+
+   3.
+   Digital products are not refundable.
+
+
+   These chunks are now sent to the LLM.
+
+8️⃣ LLM Prompt
+
+   The retrieved chunks are inserted into the prompt.
+
+   Example prompt:
+
+   You are a helpful assistant.
+
+   Use the following context to answer the question.
+
+   Context:
+   Customers may request a refund within 30 days of purchase.
+   Refunds are processed within 5 business days after approval.
+
+   Question:
+   How long do I have to request a refund?
+
+
+   Now the LLM has the correct information.
+
+9️⃣ Final Answer
+
+   The LLM generates an answer based on the retrieved context.
+
+   Answer:
+
+   Customers can request a refund within 30 days of purchase.
+
+
+This reduces hallucination because the answer is grounded in real documents.
