@@ -436,3 +436,17 @@ DOCUMENTS = DOCUMENTS + DISTRACTOR_DOCUMENTS
 print(f"Loaded {len(DOCUMENTS)} documents")
 for doc in DOCUMENTS:
     print(f"  • {doc['title']} ({len(doc['content'].split())} words)")
+
+#Excercise 1 - chunking
+
+# --- Strategy 1: Fixed-size (the naive way) ---
+
+def chunk_fixed(text: str, chunk_size: int = 200, overlap: int = 50) -> List[str]:
+    """Split text into fixed-size word chunks with overlap."""
+    words = text.split()
+    chunks = []
+    for i in range(0, len(words), chunk_size - overlap):
+        chunk = " ".join(words[i:i + chunk_size])
+        if chunk.strip():
+            chunks.append(chunk.strip())
+    return chunks
