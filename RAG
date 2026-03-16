@@ -1,0 +1,169 @@
+RAG stands for Retrieval-Augmented Generation. It is a technique used in AI systems where the model retrieves relevant information from external data sources and then uses it to generate an answer. 🤖📚
+
+Instead of relying only on what the model learned during training, RAG allows the model to look up fresh or private information before answering.
+
+1️⃣ Simple Idea
+
+Normal LLM workflow:
+
+   Question → LLM → Answer
+
+
+RAG workflow:
+
+   Question
+      ↓
+   Retrieve relevant documents
+      ↓
+   Send documents + question to LLM
+      ↓
+   LLM generates answer
+
+
+So the model reads documents first, then answers.
+
+2️⃣ Example
+
+User asks:
+
+"What are the benefits of machine learning?"
+
+Without RAG
+
+   The LLM answers from its training knowledge only.
+
+With RAG
+
+System does:
+
+   Search documents (database / PDFs / knowledge base)
+
+   Retrieve relevant passages
+
+   Send them to the LLM
+
+   LLM generates answer using that information
+
+Example pipeline:
+
+   User Question
+         ↓
+   Vector Database Search
+         ↓
+   Relevant Documents
+         ↓
+   LLM + Documents
+         ↓
+   Final Answer
+
+3️⃣ Real World Example
+
+Imagine a company chatbot.
+
+Without RAG:
+
+   "What is our refund policy?"
+
+
+Model might hallucinate.
+
+With RAG:
+
+   Search company policy document
+   ↓
+   Retrieve refund policy section
+   ↓
+   LLM answers using real company data
+
+4️⃣ RAG Architecture
+
+Typical RAG system looks like this:
+
+   Documents
+      ↓
+   Chunking
+      ↓
+   Embeddings
+      ↓
+   Vector Database
+      ↓
+   User Query
+      ↓
+   Similarity Search
+      ↓
+   Top Relevant Chunks
+      ↓
+   LLM Prompt
+      ↓
+   Answer
+
+
+Common tools used:
+
+   FAISS
+
+   Pinecone
+
+   Chroma
+
+   LangChain
+
+   LlamaIndex
+
+5️⃣ Example Code Flow
+
+A simplified RAG flow in Python:
+
+query = "What is machine learning?"
+
+docs = vector_db.search(query)
+
+context = "\n".join(docs)
+
+prompt = f"""
+Answer the question using the context.
+
+Context:
+{context}
+
+Question:
+{query}
+"""
+
+response = llm(prompt)
+
+6️⃣ Why RAG is Important
+
+RAG solves major LLM problems:
+
+✔ Reduces hallucination
+
+Model answers based on real documents.
+
+✔ Uses private data
+
+You can connect:
+
+PDFs
+
+Databases
+
+Company knowledge base
+
+✔ Up-to-date information
+
+No retraining required.
+
+✔ Cheaper than fine-tuning
+
+8️⃣ Where RAG is Used
+
+Many modern AI products use RAG:
+
+   ChatGPT browsing mode
+
+   Perplexity AI
+
+   Notion AI
+
+   Slack AI
