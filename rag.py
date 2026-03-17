@@ -609,4 +609,139 @@ if __name__ == "__main__":
         print("\n" + "=" * 60)
         print(rag_answer(q))
 
+#Exercise 3: Hybrid Search — Semantic + BM25
+
+import re
+from typing import List, Tuple, Dict
+from rank_bm25 import BM25Okapi
+
+# -------------------------------
+# TOKENIZER (for BM25)
+# -------------------------------
+def tokenize(text: str) -> List[str]:
+    """Simple tokenizer: lowercase + words only"""
+    return re.findall(r'\w+', text.lower())
+
+# -------------------------------
+# BUILD BM25 INDEX
+# -------------------------------
+bm25 = BM25Okapi([tokenize(c) for c in all_chunks])
+
+print(f"✅ Built BM25 index over {len(all_chunks)} chunks")
+
+# -------------------------------
+# RECIPROCAL RANK FUSION (RRF)
+# -------------------------------
+def reciprocal_rank_fusion(
+    semantic: List[Tuple[int, float]],
+    keyword: List[Tuple[int, float]],
+    k: int = 60
+) -> List[Tuple[int, float]]:
+    """
+    Combine semantic + keyword rankings
+    """
+    scores = {}
+
+    # Semantic scores
+    for rank, (idx, _) in enumerate(semantic):
+        scores[idx] = scores.get(idx, 0) + 1 / (k + rank + 1)
+
+    # Keyword scores
+    for rank, (idx, _) in enumerate(keyword):
+        scores[idx] = scores.get(idx, 0) + 1 / (k + rank + 1)
+
+    # Sort by combined score
+    return sorted(scores.items(), key=lambda x: x[1], reverse=True)
+
+# -------------------------------
+# HYBRID SEARCH
+# -------------------------------
+def hybrid_search(question: str, k: int = 5) -> List[Dict]:
+    """Combine semantic + BM25 search"""
+
+    # -----------------------
+    # 1. Semantic Search
+    # -----------------------
+    sem = collection.query(
+        query_embeddings=[get_embedding(question)],
+        n_results=20
+    )
+
+    # FIXED: IDs are "0", "1", "2" → no split needed
+    sem_ranked = [
+        (int(id), dist)
+        for id, dist in zip(sem["ids"][0], sem["distances"][0])
+    ]
+
+    # -----------------------
+    # 2. BM25 Keyword Search
+    # -----------------------
+    scores = bm25.get_scores(tokenize(question))
+
+    bm25_ranked = sorted(
+        enumerate(scores),
+        key=lambda x: x[1],
+        reverse=True
+    )[:20]
+
+    # -----------------------
+    # 3. Fuse Results (RRF)
+    # -----------------------
+    fused = reciprocal_rank_fusion(sem_ranked, bm25_ranked)
+
+    # -----------------------
+    # 4. Return Top Results
+    # -----------------------
+    return [
+        {
+            "chunk": all_chunks[idx],
+            "meta": chunk_meta[idx],
+            "score": sc
+        }
+        for idx, sc in fused[:k]
+    ]
+
+# -------------------------------
+# HYBRID RAG (NO LLM - FREE)
+# -------------------------------
+def hybrid_rag(question: str, k: int = 5, verbose: bool = True) -> str:
+    """Hybrid RAG without LLM (returns best chunk)"""
+
+    results = hybrid_search(question, k)
+
+    if verbose:
+        print(f"\n🔍 Query: '{question}'")
+        print(f"\n📚 Retrieved {len(results)} chunks (Hybrid Search):")
+
+        for i, r in enumerate(results):
+            print(f"  [{i+1}] RRF Score={r['score']:.4f} | {r['meta']['title']}")
+            print(f"      {r['chunk'][:100]}...")
+
+    # -----------------------
+    # SIMPLE ANSWER (FREE)
+    # -----------------------
+    best_chunk = results[0]["chunk"]
+
+    answer = f"""
+💡 Answer (from best match):
+{best_chunk}
+"""
+
+    print(answer)
+    return answer
+
+# -------------------------------
+# TEST QUERIES
+# -------------------------------
+if __name__ == "__main__":
+    queries = [
+        "What is the refund period?",
+        "When will I get my money back?",
+        "How many leave days do employees get?",
+        "Are digital products refundable?"
+    ]
+
+    for q in queries:
+        print("\n" + "=" * 60)
+        hybrid_rag(q)
 
