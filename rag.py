@@ -500,3 +500,113 @@ for i, c in enumerate(recursive[:3]):
     print(c[:150], "...")
 
 print("\n💡 Fixed cuts mid-thought. Recursive respects paragraph boundaries.")
+
+#Exercise 2: Naive RAG — Build it, then break it
+
+import chromadb
+from typing import List
+from sentence_transformers import SentenceTransformer
+
+
+# -------------------------------
+# EMBEDDINGS (FREE - LOCAL)
+# -------------------------------
+print("🔄 Loading embedding model...")
+embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+
+def get_embeddings(texts):
+    return embedding_model.encode(texts).tolist()
+
+def get_embedding(text):
+    return embedding_model.encode([text])[0].tolist()
+
+# -------------------------------
+# CHUNK ALL DOCUMENTS
+# -------------------------------
+all_chunks = []
+chunk_meta = []
+
+for doc in DOCUMENTS:
+    chunks = chunk_recursive(doc["content"], max_size=100)
+
+    for chunk in chunks:
+        all_chunks.append(chunk)
+        chunk_meta.append({
+            "title": doc["title"],
+            "source": doc["source"]
+        })
+
+print(f"\n📄 Total chunks: {len(all_chunks)}")
+
+# -------------------------------
+# VECTOR DB (Chroma)
+# -------------------------------
+print("🔄 Creating Chroma DB...")
+
+chroma_client = chromadb.Client()
+collection = chroma_client.create_collection(name="rag_demo")
+
+# -------------------------------
+# STORE EMBEDDINGS
+# -------------------------------
+print("🔄 Generating embeddings...")
+
+embeddings = get_embeddings(all_chunks)
+
+for i, (chunk, emb, meta) in enumerate(zip(all_chunks, embeddings, chunk_meta)):
+    collection.add(
+        ids=[str(i)],
+        embeddings=[emb],
+        documents=[chunk],
+        metadatas=[meta]
+    )
+
+print("✅ Stored all chunks in vector DB")
+
+# -------------------------------
+# RETRIEVAL FUNCTION
+# -------------------------------
+def retrieve(query: str, top_k: int = 3):
+    query_embedding = get_embedding(query)
+
+    results = collection.query(
+        query_embeddings=[query_embedding],
+        n_results=top_k
+    )
+
+    return results["documents"][0], results["metadatas"][0]
+
+# -------------------------------
+# RAG ANSWER (Simple Version)
+# -------------------------------
+def rag_answer(query: str):
+    docs, metas = retrieve(query)
+
+    context = "\n\n".join(docs)
+
+    answer = f"""
+🔍 Query: {query}
+
+📚 Retrieved Context:
+{context}
+
+💡 Answer (based on retrieved info):
+{docs[0]}
+"""
+    return answer
+
+# -------------------------------
+# TEST QUERIES
+# -------------------------------
+if __name__ == "__main__":
+    queries = [
+        "What is the refund period?",
+        "How many leave days do employees get?",
+        "Are digital products refundable?"
+    ]
+
+    for q in queries:
+        print("\n" + "=" * 60)
+        print(rag_answer(q))
+
+
