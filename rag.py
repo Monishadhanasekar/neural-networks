@@ -753,6 +753,8 @@ if __name__ == "__main__":
 #AFTER:  "[From ACME Corp Q2 2023 SEC filing] The company's revenue grew by 3%..."
 #The embedding now captures what the chunk is about, not just what it says.
 
+#Note: Here in this code, we are not using anthropic llm call's since it's paid. Refer colab for that code.
+
 import re
 from typing import List, Tuple, Dict
 from rank_bm25 import BM25Okapi
