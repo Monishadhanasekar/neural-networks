@@ -907,3 +907,46 @@ if __name__ == "__main__":
     for i, r in enumerate(results):
         print(f"[{i+1}] {r['meta']['title']} (Score: {r['score']:.4f})")
         print(f"Contextual Chunk:\n{r['chunk'][:200]}...\n")
+
+#Exercise 5: Reranking — The Precision Upgrade
+#Cross-encoder reranker sees query + document together, catching nuance that bi-encoders miss.
+
+from sentence_transformers import CrossEncoder
+
+reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+print("✅ Loaded cross-encoder reranker")
+
+def rerank(question: str, results: List[Dict], top_k: int = 3) -> List[Dict]:
+    """Rerank results with cross-encoder."""
+    pairs = [(question, r["chunk"]) for r in results]
+    scores = reranker.predict(pairs)
+    for r, s in zip(results, scores):
+        r["rerank_score"] = float(s)
+    return sorted(results, key=lambda x: x["rerank_score"], reverse=True)[:top_k]
+
+def full_rag(question: str, verbose: bool = True) -> str:
+    """
+    The full pipeline:
+    Contextual chunks → Hybrid search (top 10) → Rerank (top 3) → Generate
+    """
+    results = ctx_hybrid_search(question, k=10)
+    top = rerank(question, results, top_k=3)
+
+    if verbose:
+        print(f"\n🔍 Query: '{question}'")
+        print(f"\nTop 3 after reranking:")
+        for i, r in enumerate(top):
+            print(f"  [{i+1}] rerank={r['rerank_score']:.3f} | {r['meta']['title']}")
+            print(f"      {r['chunk'][:100]}...")
+
+    context = "\n".join(
+        f"[Source: {r['meta']['title']}]\n{r['chunk']}" for r in top
+    )
+
+    if not top:
+        return "I don't have enough information."
+
+    return top[0]["chunk"]
+
+
+full_rag("What are the known issues with ACME's authentication system?")
