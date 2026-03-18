@@ -745,3 +745,163 @@ if __name__ == "__main__":
         print("\n" + "=" * 60)
         hybrid_rag(q)
 
+#Exercise 4: Contextual Retrieval — Anthropic's Technique
+
+#Before embedding, use an LLM to prepend context to each chunk.
+
+#BEFORE: "The company's revenue grew by 3%..."
+#AFTER:  "[From ACME Corp Q2 2023 SEC filing] The company's revenue grew by 3%..."
+#The embedding now captures what the chunk is about, not just what it says.
+
+import re
+from typing import List, Tuple, Dict
+from rank_bm25 import BM25Okapi
+
+# -------------------------------
+# SIMPLE TOKENIZER
+# -------------------------------
+def tokenize(text: str) -> List[str]:
+    return re.findall(r'\w+', text.lower())
+
+# -------------------------------
+# FREE CONTEXTUALIZATION (NO LLM)
+# -------------------------------
+def contextualize_chunk_free(chunk: str, full_doc: str, title: str) -> str:
+    """
+    Add simple context WITHOUT LLM
+    """
+
+    # Take first 30 words of document as summary
+    doc_summary = " ".join(full_doc.split()[:30])
+
+    context = f"""
+[Document: {title}]
+[Summary: {doc_summary}]
+[Section Content]:
+"""
+
+    return context.strip() + "\n\n" + chunk
+
+print("🔄 Contextualizing chunks (FREE version)...")
+
+ctx_chunks = []
+
+for i, (chunk, meta) in enumerate(zip(all_chunks, chunk_meta)):
+    doc = next(d for d in DOCUMENTS if d["title"] == meta["title"])
+
+    ctx_chunk = contextualize_chunk_free(
+        chunk,
+        doc["content"],
+        doc["title"]
+    )
+
+    ctx_chunks.append(ctx_chunk)
+
+    if (i + 1) % 10 == 0:
+        print(f"  {i+1}/{len(all_chunks)} done")
+
+print(f"\n✅ Contextualized {len(ctx_chunks)} chunks (FREE)")
+
+# -------------------------------
+# BEFORE vs AFTER
+# -------------------------------
+print("\n--- BEFORE ---")
+print(all_chunks[0][:200])
+
+print("\n--- AFTER ---")
+print(ctx_chunks[0][:300])
+
+# -------------------------------
+# STORE IN CHROMA
+# -------------------------------
+try:
+    chroma_client.delete_collection("ctx_rag")
+except:
+    pass
+
+ctx_collection = chroma_client.create_collection(name="ctx_rag")
+
+print("🔄 Generating embeddings...")
+
+ctx_embs = get_embeddings(ctx_chunks)
+
+ctx_collection.add(
+    ids=[f"ctx_{i}" for i in range(len(ctx_chunks))],
+    embeddings=ctx_embs,
+    documents=ctx_chunks,
+    metadatas=chunk_meta
+)
+
+print(f"✅ Stored {len(ctx_chunks)} contextualized chunks")
+
+# -------------------------------
+# BM25 ON CONTEXTUAL CHUNKS
+# -------------------------------
+ctx_bm25 = BM25Okapi([tokenize(c) for c in ctx_chunks])
+
+# -------------------------------
+# RRF (same as before)
+# -------------------------------
+def reciprocal_rank_fusion(
+    semantic: List[Tuple[int, float]],
+    keyword: List[Tuple[int, float]],
+    k: int = 60
+) -> List[Tuple[int, float]]:
+
+    scores = {}
+
+    for rank, (idx, _) in enumerate(semantic):
+        scores[idx] = scores.get(idx, 0) + 1 / (k + rank + 1)
+
+    for rank, (idx, _) in enumerate(keyword):
+        scores[idx] = scores.get(idx, 0) + 1 / (k + rank + 1)
+
+    return sorted(scores.items(), key=lambda x: x[1], reverse=True)
+
+# -------------------------------
+# CONTEXTUAL HYBRID SEARCH
+# -------------------------------
+def ctx_hybrid_search(question: str, k: int = 5) -> List[Dict]:
+
+    # Semantic
+    sem = ctx_collection.query(
+        query_embeddings=[get_embedding(question)],
+        n_results=20
+    )
+
+    sem_ranked = [
+        (int(id.split("_")[1]), dist)
+        for id, dist in zip(sem["ids"][0], sem["distances"][0])
+    ]
+
+    # BM25
+    scores = ctx_bm25.get_scores(tokenize(question))
+    bm25_ranked = sorted(enumerate(scores), key=lambda x: x[1], reverse=True)[:20]
+
+    # Fuse
+    fused = reciprocal_rank_fusion(sem_ranked, bm25_ranked)
+
+    return [
+        {
+            "chunk": ctx_chunks[idx],
+            "original": all_chunks[idx],
+            "meta": chunk_meta[idx],
+            "score": sc
+        }
+        for idx, sc in fused[:k]
+    ]
+
+# -------------------------------
+# TEST
+# -------------------------------
+if __name__ == "__main__":
+    query = "What is ACME's AI strategy and how does it connect to current products?"
+
+    results = ctx_hybrid_search(query)
+
+    print("\n🔍 Query:", query)
+    print("\nTop Results:\n")
+
+    for i, r in enumerate(results):
+        print(f"[{i+1}] {r['meta']['title']} (Score: {r['score']:.4f})")
+        print(f"Contextual Chunk:\n{r['chunk'][:200]}...\n")
