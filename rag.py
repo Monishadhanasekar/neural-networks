@@ -419,9 +419,6 @@ P3 (Low): Cosmetic issues, minor bugs, or improvement requests. Target resolutio
 On-Call Rotation
 Each team maintains a primary and secondary on-call rotation using PagerDuty. On-call shifts are 1 week, Monday to Monday. The primary on-call must acknowledge pages within 5 minutes. If unacknowledged, the page escalates to the secondary on-call, then to the Engineering Manager. On-call engineers receive a $500/week stipend and compensatory time off.
 
-Incident Communication
-P0/P1 incidents require a dedicated Slack channel named #inc-YYYYMMDD-description. The Incident Commander (IC) posts status updates every 15 minutes for P0 and every 30 minutes for P1. Customer-facing incidents require coordination with the Customer Support team who manage external communications through StatusPage. The VP of Engineering is notified automatically for all P0 incidents.
-
 War Room Protocol
 P0 incidents automatically create a Zoom bridge. The IC assigns roles: IC (coordinates response), Tech Lead (drives investigation), Communications Lead (manages stakeholder updates), and Scribe (documents timeline). Decisions are made by the IC with input from the Tech Lead. Disagreements are escalated to the VP of Engineering.
 
