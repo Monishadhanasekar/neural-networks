@@ -462,3 +462,41 @@ for i, c in enumerate(recursive[:3]):
     print(c)
 
 print("\n💡 LangChain handles splitting intelligently using separators.")
+
+#semchunk 
+
+import semchunk
+
+# -------------------------------
+# CREATE CHUNKER
+# -------------------------------
+# You can pass a model name OR tokenizer
+# "gpt-4" just helps estimate token size (no API call)
+
+chunker = semchunk.chunkerify(
+    "gpt-4",          # tokenizer reference
+    chunk_size=100   # similar to your previous chunk_size
+)
+
+# -------------------------------
+# SAMPLE TEXT
+# -------------------------------
+sample = DOCUMENTS[0]["content"]
+
+# -------------------------------
+# SPLIT INTO CHUNKS
+# -------------------------------
+chunks = chunker(sample)
+
+# -------------------------------
+# PRINT RESULTS
+# -------------------------------
+print("=" * 60)
+print("SEMCHUNK CHUNKING")
+print("=" * 60)
+
+for i, c in enumerate(chunks[:3]):
+    print(f"\nChunk {i+1} ({len(c.split())} words approx):")
+    print(c)
+
+print("\n💡 semchunk creates more semantic + token-aware chunks.")
