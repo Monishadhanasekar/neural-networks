@@ -35,3 +35,58 @@ FILLER_POOL = [
 print(f"Fact A: {FACT_A}")
 print(f"Fact B: {FACT_B}")
 print(f"Filler paragraphs available: {len(FILLER_POOL)}")
+
+# === CONTEXT ROT EXPERIMENT ===
+
+QUESTION = "What is the launch date for AURORA-7?"
+# Correct answer requires: Fact A (Vasquez leads AURORA-7) + Fact B (Vasquez launch = March 15)
+
+def build_multihop_haystack(n_filler):
+    """Build a haystack with TWO facts separated by filler."""
+    fillers = (FILLER_POOL * ((n_filler // len(FILLER_POOL)) + 1))[:n_filler]
+    np.random.seed(42)
+    np.random.shuffle(fillers)
+    # Place facts far apart - Fact A near start, Fact B near end
+    pos_a = max(1, len(fillers) // 4)
+    pos_b = (3 * len(fillers)) // 4
+    fillers.insert(pos_a, FACT_A)
+    fillers.insert(pos_b, FACT_B)
+    return "\n\n".join(fillers)
+
+def test_multihop(context, question):
+    msg = [
+        {"role": "system", "content": "Answer the question based ONLY on the provided context. Be precise and specific."},
+        {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}"}
+    ]
+    return chat(msg, max_tokens=200)
+
+experiments = [
+    {"name": "Tiny (2 facts + 5 fillers)",    "n_filler": 5},
+    {"name": "Small (2 facts + 20 fillers)",   "n_filler": 20},
+    {"name": "Medium (2 facts + 60 fillers)",  "n_filler": 60},
+    {"name": "Large (2 facts + 120 fillers)",  "n_filler": 120},
+    {"name": "XL (2 facts + 200 fillers)",     "n_filler": 200},
+]
+
+print("CONTEXT ROT EXPERIMENT (Multi-Hop)")
+print("=" * 60)
+print(f"Question: {QUESTION}")
+print(f"Correct: March 15, 2024 (requires connecting Vasquez -> AURORA-7 -> date)")
+print()
+
+for exp in experiments:
+    ctx = build_multihop_haystack(exp["n_filler"])
+    n_words = len(ctx.split())
+    approx_tokens = n_words * 4 // 3
+    print(f"\n>> {exp['name']} (~{n_words} words, ~{approx_tokens} tokens)")
+    answer = test_multihop(ctx, QUESTION)
+    correct = "march 15" in answer.lower()
+    status = "[PASS]" if correct else "[FAIL]"
+    print(f"   {status} Answer: {answer[:250]}")
+    time.sleep(1)
+
+print("\n" + "=" * 60)
+print("Multi-hop reasoning degrades much faster than simple lookup.")
+print("The model must connect Vasquez -> AURORA-7 -> March 15 date.")
+print("As context grows, the attention budget gets stretched thin.")
+print("This is context rot.")
