@@ -1,3 +1,28 @@
+from openai import OpenAI
+import json, numpy as np, time, re
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+client = OpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=os.getenv("OPENROUTER_API_KEY")
+)
+MODEL = "openrouter/free"
+
+#MODEL = "qwen/qwen3.5-122b-a10b"
+
+def chat(messages, model=MODEL, temperature=0.3, max_tokens=1024):
+    resp = client.chat.completions.create(
+        model=model, messages=messages,
+        temperature=temperature, max_tokens=max_tokens
+    )
+    return resp.choices[0].message.content
+
+print(chat([{"role": "user", "content": "Say 'hello world' and nothing else."}]))
+
 # === MULTI-HOP NEEDLE ===
 # The model must find TWO facts and connect them:
 # Fact 1: "Dr. Elena Vasquez leads the AURORA-7 initiative."
