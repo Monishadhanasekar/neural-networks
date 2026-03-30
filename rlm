@@ -1,0 +1,131 @@
+What RLM does (in one line)
+
+It breaks a problem into smaller parts, solves each part using the LLM, and then combines the results—recursively if needed.
+
+🔍 Example Problem
+
+Let’s use a realistic example (similar to your earlier work):
+
+“Users can’t log in. What could be wrong?”
+
+🔁 Step-by-step RLM flow
+🟢 Step 1: Initial Question (Root Call)
+
+You send:
+
+Users can't log in. What could be wrong?
+
+🧠 Step 2: Decompose the problem
+
+RLM asks the model:
+
+Break this problem into smaller sub-problems.
+
+Model outputs:
+1. Check authentication service health
+2. Check token expiration or refresh issues
+3. Check database connectivity
+4. Check recent deployments or incidents
+
+
+👉 This is the first level of recursion
+
+🔁 Step 3: Solve each sub-problem (recursive calls)
+
+Now RLM calls itself for each sub-question
+
+🔹 Sub-call 1: Auth service
+Q: Is the authentication service down?
+
+
+Model might answer:
+
+The auth service may be down due to high load or outage.
+Check recent incidents or monitoring alerts.
+
+🔹 Sub-call 2: Token issues
+Q: Could tokens be causing login failure?
+
+
+Model:
+
+Yes, expired or invalid refresh tokens can prevent login.
+Token rotation or revocation may also cause issues.
+
+🔹 Sub-call 3: Database
+Q: Could database issues cause login failure?
+
+
+Model:
+
+Yes, if DB connections are exhausted, login requests may fail.
+
+🔹 Sub-call 4: Deployment
+Q: Any recent changes that could break login?
+
+
+Model:
+
+A faulty deployment may introduce bugs or overload services.
+Rollback should be considered.
+
+🔗 Step 4: Combine all answers
+
+Now RLM asks:
+
+Combine these findings into a final answer.
+
+Final output:
+Users may be unable to log in due to:
+- Authentication service outage
+- Expired or invalid tokens
+- Database connection issues
+- Recent faulty deployment
+
+Check monitoring dashboards and recent releases to identify the root cause.
+
+🔁 Where recursion happens again
+
+If any step is still complex, RLM can go deeper:
+
+Example:
+
+"Check authentication service health"
+
+
+⬇️ Breaks into:
+
+Check CPU/memory
+Check logs
+Check error rate
+
+👉 This is multi-level recursion (tree-like reasoning)
+
+🌳 Visual structure
+Main Problem
+   ├── Auth Service
+   │     ├── CPU
+   │     ├── Logs
+   │     └── Errors
+   ├── Token Issues
+   ├── Database
+   └── Deployment
+
+
+👉 This is why it’s sometimes called Tree-of-Thought reasoning
+
+🆚 Compare with normal LLM
+❌ One-shot
+Users can't log in → single answer
+
+
+👉 May miss things
+
+✅ Recursive
+Users can't log in
+   → break into causes
+      → solve each
+         → combine
+
+
+👉 Much more structured & reliable
