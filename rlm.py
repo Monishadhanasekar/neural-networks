@@ -82,3 +82,26 @@ print(f"\nFirst 5 entries:")
 for e in entries[:5]:
     print(f"  {e}")
 print(f"\n🎯 Ground truth: {ground_truth} engineers in Tokyo")
+
+#Try it with a vanilla LLM — just stuff the context in
+
+# ──────────────────────────────────────────────
+# VANILLA APPROACH: stuff everything into the prompt
+# ──────────────────────────────────────────────
+
+vanilla_prompt = f"""Here is a dataset of people. Count EXACTLY how many are engineers in Tokyo.
+Return ONLY the number, nothing else.
+
+{dataset_text}"""
+
+print(f"Prompt length: {len(vanilla_prompt)} characters")
+print("Asking vanilla LLM...")
+
+vanilla_answer = llm_call(vanilla_prompt)
+print(f"\nVanilla LLM answer: {vanilla_answer}")
+print(f"Ground truth:        {ground_truth}")
+print(f"Correct?             {'✅ Yes' if str(ground_truth) in vanilla_answer else '❌ No'}")
+
+#Even if the model gets this one right with 500 entries, the approach doesn't scale. At 5,000 or 50,000 entries, context rot destroys accuracy.
+
+#The RLM approach: instead of feeding all 500 entries to the model, let the model write code to count them itself.
