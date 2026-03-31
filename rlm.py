@@ -15,8 +15,8 @@ load_dotenv()
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 # Models — use cheap/free ones for the class
-ROOT_MODEL = "google/gemini-3-flash-preview"  # root agent (stronger)
-SUB_MODEL  = "google/gemini-3-flash-preview"  # sub-agent (can be cheaper)
+ROOT_MODEL = "openrouter/free"  # root agent (stronger)
+SUB_MODEL  = "openrouter/free"  # sub-agent (can be cheaper)
 
 def llm_call(prompt, system="", model=ROOT_MODEL, max_tokens=4000):
     """Call an LLM via OpenRouter. Returns the text response."""
@@ -105,3 +105,120 @@ print(f"Correct?             {'✅ Yes' if str(ground_truth) in vanilla_answer e
 #Even if the model gets this one right with 500 entries, the approach doesn't scale. At 5,000 or 50,000 entries, context rot destroys accuracy.
 
 #The RLM approach: instead of feeding all 500 entries to the model, let the model write code to count them itself.
+
+#Part 2: Build the REPL Environment
+#The REPL is where the model's code runs. We need:
+
+#The context stored as a variable (not in the prompt)
+#print() output captured and returned to the model
+#A FINAL() function to signal the answer
+#A llm_query() function for recursive sub-LLM calls
+
+# ──────────────────────────────────────────────
+# THE REPL: a Python execution environment
+# ──────────────────────────────────────────────
+
+class RLMRepl:
+    """A REPL environment for RLM.
+
+    The context is stored as a Python variable.
+    The model writes code that runs here.
+    print() output is captured and returned to the model.
+    """
+
+    def __init__(self, context: str, max_output_chars: int = 5000):
+        self.final_answer = None
+        self.max_output_chars = max_output_chars
+        self.sub_call_count = 0
+
+        # The namespace where the model's code runs.
+        # 'context' is the key variable — the long input stored here,
+        # NOT in the LLM's prompt.
+        self.namespace = {
+            "context": context,            # <-- the long input lives here
+            "FINAL": self._final,           # call FINAL("answer") to finish
+            "llm_query": self._llm_query,   # call a sub-LLM (recursion!)
+            # Standard library modules the model might want
+            "re": re,
+            "json": json,
+            "len": len,
+            "print": print,
+            "int": int,
+            "float": float,
+            "str": str,
+            "list": list,
+            "dict": dict,
+            "range": range,
+            "enumerate": enumerate,
+            "sum": sum,
+            "sorted": sorted,
+            "min": min,
+            "max": max,
+            "abs": abs,
+            "set": set,
+            "tuple": tuple,
+            "zip": zip,
+            "map": map,
+            "filter": filter,
+            "isinstance": isinstance,
+            "type": type,
+            "True": True,
+            "False": False,
+            "None": None,
+        }
+
+    def _final(self, answer):
+        """Called by the model to submit its final answer."""
+        self.final_answer = str(answer)
+        print(f"[FINAL ANSWER SUBMITTED: {answer}]")
+
+    def _llm_query(self, query: str, sub_context: str = "") -> str:
+        """Recursive sub-LLM call.
+
+        The model can call this from within its code to get
+        a sub-LLM to process a chunk of context.
+        The result comes back as a string variable — NOT
+        loaded into the parent's context window.
+        """
+        self.sub_call_count += 1
+        print(f"  [Sub-LLM call #{self.sub_call_count}: '{query[:80]}...'")
+
+        prompt = query
+        if sub_context:
+            prompt = f"{query}\n\nContext:\n{sub_context}"
+
+        result = llm_call(prompt, model=SUB_MODEL, max_tokens=2000)
+        print(f"   Sub-LLM returned: '{result[:100]}...']")
+        return result
+
+    def execute(self, code: str) -> str:
+        """Execute Python code in the REPL. Returns captured stdout."""
+        stdout_capture = io.StringIO()
+        stderr_capture = io.StringIO()
+
+        try:
+            with redirect_stdout(stdout_capture), redirect_stderr(stderr_capture):
+                exec(code, self.namespace)
+            output = stdout_capture.getvalue()
+        except Exception as e:
+            output = f"ERROR: {type(e).__name__}: {e}"
+
+        # Truncate if too long — the model shouldn't be overwhelmed
+        if len(output) > self.max_output_chars:
+            output = output[:self.max_output_chars] + f"\n... [truncated to {self.max_output_chars} chars]"
+
+        return output
+
+# Quick test of the REPL
+repl = RLMRepl(context="Hello world! This is a test context with some data.")
+print("Test 1 — peek at context:")
+print(repl.execute('print(context[:30])'))
+
+print("\nTest 2 — search with regex:")
+print(repl.execute('import re\nmatches = re.findall(r"\\w+", context)\nprint(f"Words: {len(matches)}")'))
+
+print("\nTest 3 — submit final answer:")
+print(repl.execute('FINAL(42)'))
+print(f"Final answer stored: {repl.final_answer}")
+
+print("\n✅ REPL works!")
