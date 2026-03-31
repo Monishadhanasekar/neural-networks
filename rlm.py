@@ -222,3 +222,48 @@ print(repl.execute('FINAL(42)'))
 print(f"Final answer stored: {repl.final_answer}")
 
 print("\n✅ REPL works!")
+
+#Part 3: Build the RLM Agent Loop
+#The core loop:
+
+#Give the LLM the query + system prompt (but NOT the context)
+#LLM writes Python code
+#Execute the code in the REPL (where context lives)
+#Send the output back to the LLM
+#Repeat until FINAL() is called or we hit max iterations
+
+# ──────────────────────────────────────────────
+# THE RLM SYSTEM PROMPT
+# This tells the model HOW to use the REPL
+# ──────────────────────────────────────────────
+
+RLM_SYSTEM_PROMPT = """You are an RLM (Recursive Language Model) agent.
+
+You have access to a Python REPL environment. The user's data is stored
+in a variable called `context` — it may be very long (millions of characters).
+You CANNOT see the context directly. You must write Python code to explore it.
+
+Available tools:
+- `context` — the full input text (Python string variable)
+- `print()` — use this to see output from your code
+- `llm_query(query, sub_context)` — call a sub-LLM to analyze a chunk.
+  The sub-LLM's response is returned as a string. It does NOT enter your context.
+- `FINAL(answer)` — call this when you have the final answer.
+- Standard Python: `re`, `json`, `len`, `sum`, etc.
+
+Strategy:
+1. First, check the size: `print(len(context))`
+2. Peek at the structure: `print(context[:500])`
+3. Use code to search, filter, count, or slice the data
+4. For complex subtasks, use `llm_query()` to delegate to a sub-LLM
+5. When done, call `FINAL(your_answer)`
+
+Rules:
+- Write ONLY Python code. No markdown, no explanation.
+- Your code block must be wrapped in ```python ... ```
+- Use print() to see results — you only see what you print.
+- Variables persist between steps (like Jupyter cells).
+- Be systematic. Explore first, then solve.
+"""
+
+print("System prompt defined ✅")
