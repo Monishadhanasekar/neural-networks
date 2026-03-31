@@ -267,3 +267,127 @@ Rules:
 """
 
 print("System prompt defined ✅")
+
+# ──────────────────────────────────────────────
+# THE RLM LOOP
+# ──────────────────────────────────────────────
+
+def extract_code(response: str) -> str:
+    """Extract Python code from the LLM's response."""
+    # Try to find ```python ... ``` blocks
+    pattern = r'```python\s*\n(.*?)```'
+    matches = re.findall(pattern, response, re.DOTALL)
+    if matches:
+        return matches[0].strip()
+
+    # Try ``` ... ``` blocks
+    pattern = r'```\s*\n(.*?)```'
+    matches = re.findall(pattern, response, re.DOTALL)
+    if matches:
+        return matches[0].strip()
+
+    # If no code blocks, try to use the whole response as code
+    # (strip any leading text before first line that looks like code)
+    lines = response.strip().split('\n')
+    code_lines = []
+    started = False
+    for line in lines:
+        if not started and line.startswith(('import ', 'from ', 'print(', '#', 'for ', 'if ', 'def ', 'context', 'result', 'count', 'data', 'lines', 'FINAL')):
+            started = True
+        if started:
+            code_lines.append(line)
+
+    return '\n'.join(code_lines) if code_lines else response.strip()
+
+
+def run_rlm(query: str, context: str, max_iterations: int = 10, verbose: bool = True):
+    """Run an RLM agent on a query with a given context.
+
+    The context is NOT sent to the LLM. It's stored in the REPL
+    as a Python variable. The LLM writes code to explore it.
+
+    Args:
+        query: The question to answer
+        context: The (potentially huge) input text
+        max_iterations: Max REPL interaction loops
+        verbose: Print each step
+
+    Returns:
+        dict with 'answer', 'iterations', 'sub_calls', 'history'
+    """
+    repl = RLMRepl(context)
+    history = []  # conversation history for the root LLM
+
+    # First message: just the query (NOT the context!)
+    user_msg = f"""Task: {query}
+
+The data is in the `context` variable ({len(context)} characters long).
+Write Python code to explore and solve this. Start by checking the structure."""
+
+    history.append({"role": "user", "content": user_msg})
+
+    for i in range(max_iterations):
+        if verbose:
+            print(f"\n{'='*60}")
+            print(f"  ITERATION {i+1}/{max_iterations}")
+            print(f"{'='*60}")
+
+        # Ask the LLM to write code
+        response = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}"},
+            json={
+                "model": ROOT_MODEL,
+                "messages": [{"role": "system", "content": RLM_SYSTEM_PROMPT}] + history,
+                "max_tokens": 2000
+            }
+        ).json()
+
+        assistant_msg = response["choices"][0]["message"]["content"]
+        history.append({"role": "assistant", "content": assistant_msg})
+
+        # Extract code from the response
+        code = extract_code(assistant_msg)
+
+        if verbose:
+            print(f"\n📝 LLM wrote:\n")
+            for line in code.split('\n'):
+                print(f"    {line}")
+
+        # Execute in the REPL
+        output = repl.execute(code)
+
+        if verbose:
+            print(f"\n📤 REPL output:\n")
+            for line in output.split('\n'):
+                print(f"    {line}")
+
+        # Check if FINAL was called
+        if repl.final_answer is not None:
+            if verbose:
+                print(f"\n🏁 FINAL ANSWER: {repl.final_answer}")
+                print(f"   Iterations: {i+1}")
+                print(f"   Sub-LLM calls: {repl.sub_call_count}")
+            return {
+                "answer": repl.final_answer,
+                "iterations": i + 1,
+                "sub_calls": repl.sub_call_count,
+                "history": history
+            }
+
+        # Feed the output back to the LLM for the next iteration
+        history.append({
+            "role": "user",
+            "content": f"REPL output:\n```\n{output}\n```\nContinue. Write more code or call FINAL(answer) when done."
+        })
+
+    if verbose:
+        print(f"\n⚠️ Max iterations reached without FINAL()")
+    return {
+        "answer": None,
+        "iterations": max_iterations,
+        "sub_calls": repl.sub_call_count,
+        "history": history
+    }
+
+print("RLM agent loop defined ✅")
