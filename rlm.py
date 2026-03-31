@@ -37,3 +37,48 @@ def llm_call(prompt, system="", model=ROOT_MODEL, max_tokens=4000):
 
 # Quick test
 print(llm_call("Say hello in one word."))
+
+#Part 1: The Problem — Long Context Fails
+#Let's create a task that's easy for humans but hard for LLMs at scale: Count specific items buried in a long, noisy dataset.
+
+import random
+random.seed(42)
+
+# ──────────────────────────────────────────────
+# Generate a synthetic dataset: people with cities and professions
+# ──────────────────────────────────────────────
+
+first_names = ["Alice", "Bob", "Charlie", "Diana", "Eve", "Frank",
+               "Grace", "Hank", "Ivy", "Jack", "Karen", "Leo",
+               "Mona", "Nate", "Olivia", "Paul", "Quinn", "Rita",
+               "Sam", "Tina", "Uma", "Vince", "Wendy", "Xander", "Yara", "Zane"]
+
+cities = ["New York", "London", "Tokyo", "Paris", "Berlin",
+          "Mumbai", "Sydney", "Toronto", "Dubai", "Singapore",
+          "Seoul", "Bangkok", "Cairo", "Lagos", "Lima"]
+
+professions = ["engineer", "doctor", "teacher", "artist", "chef",
+               "pilot", "lawyer", "nurse", "writer", "musician"]
+
+def generate_dataset(n_entries=500):
+    """Generate a dataset of people with names, cities, and professions."""
+    entries = []
+    for i in range(n_entries):
+        name = f"{random.choice(first_names)} {random.choice('ABCDEFGHIJKLMNOPQRSTUVWXYZ')}."
+        city = random.choice(cities)
+        prof = random.choice(professions)
+        age = random.randint(22, 65)
+        entries.append(f"Entry {i+1}: {name}, age {age}, {prof}, based in {city}")
+    return entries
+
+entries = generate_dataset(5000)
+dataset_text = "\n".join(entries)
+
+# Ground truth: count engineers in Tokyo
+ground_truth = sum(1 for e in entries if "engineer" in e and "Tokyo" in e)
+
+print(f"Dataset: {len(entries)} entries, {len(dataset_text)} characters")
+print(f"\nFirst 5 entries:")
+for e in entries[:5]:
+    print(f"  {e}")
+print(f"\n🎯 Ground truth: {ground_truth} engineers in Tokyo")
