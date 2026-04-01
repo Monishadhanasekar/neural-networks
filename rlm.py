@@ -473,3 +473,29 @@ print(f"Reviews dataset: {len(reviews)} reviews, {len(reviews_text)} characters"
 print(f"\nSample reviews:")
 for r in reviews[:3]:
     print(f"  {r}")
+
+# ──────────────────────────────────────────────
+# SEMANTIC TASK: summarize the sentiment per restaurant
+# This requires UNDERSTANDING, not just counting.
+# The model should use llm_query() for sub-tasks.
+# ──────────────────────────────────────────────
+
+result2 = run_rlm(
+    query="""Analyze these restaurant reviews. For each restaurant, provide:
+1. How many reviews it has
+2. Overall sentiment (positive/negative/mixed)
+3. Most mentioned dish
+
+Use code to group reviews by restaurant, then use llm_query() to analyze
+the sentiment of each group. Return a summary.""",
+    context=reviews_text,
+    max_iterations=12,
+    verbose=True
+)
+
+print(f"\n{'='*60}")
+print(f"  FINAL RESULT")
+print(f"{'='*60}")
+print(f"Answer:\n{result2['answer']}")
+print(f"\nIterations: {result2['iterations']}")
+print(f"Sub-LLM calls: {result2['sub_calls']}")
