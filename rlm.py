@@ -391,3 +391,26 @@ Write Python code to explore and solve this. Start by checking the structure."""
     }
 
 print("RLM agent loop defined ✅")
+
+#Part 4: Run the RLM!
+#Same task as before: count engineers in Tokyo. But now the model writes code to do it — the context never enters the prompt.
+
+# ──────────────────────────────────────────────
+# RLM APPROACH: context as variable, model writes code
+# ──────────────────────────────────────────────
+
+result = run_rlm(
+    query="Count EXACTLY how many people are engineers based in Tokyo. Return just the number.",
+    context=dataset_text,
+    max_iterations=8,
+    verbose=True
+)
+
+print(f"\n{'='*60}")
+print(f"  COMPARISON")
+print(f"{'='*60}")
+print(f"RLM answer:     {result['answer']}")
+print(f"Ground truth:   {ground_truth}")
+print(f"Correct?        {'✅' if result['answer'] and str(ground_truth) in str(result['answer']) else '❌'}")
+print(f"Iterations:     {result['iterations']}")
+print(f"Sub-LLM calls:  {result['sub_calls']}")
