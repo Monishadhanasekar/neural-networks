@@ -414,3 +414,62 @@ print(f"Ground truth:   {ground_truth}")
 print(f"Correct?        {'✅' if result['answer'] and str(ground_truth) in str(result['answer']) else '❌'}")
 print(f"Iterations:     {result['iterations']}")
 print(f"Sub-LLM calls:  {result['sub_calls']}")
+
+#Part 5: A Harder Task — Where Sub-LLMs Help
+#For counting, code alone was enough. But what about tasks that require understanding — like summarizing or analyzing sentiment?
+
+#This is where llm_query() (recursive sub-LLM calls) shines.
+
+# ──────────────────────────────────────────────
+# Generate a harder dataset: restaurant reviews
+# ──────────────────────────────────────────────
+
+review_templates = [
+    "The {dish} was {quality}. Service was {service}. {extra}",
+    "Ordered the {dish}. {quality} quality overall. {extra} Staff was {service}.",
+    "Had the {dish} for lunch. {extra} Food was {quality}, service {service}.",
+]
+
+dishes = ["pasta", "sushi", "burger", "salad", "steak", "pizza", "tacos", "curry", "ramen", "risotto"]
+qualities_good = ["excellent", "fantastic", "amazing", "superb", "delightful", "perfectly cooked"]
+qualities_bad = ["terrible", "awful", "undercooked", "bland", "disappointing", "inedible"]
+qualities_mid = ["okay", "decent", "average", "nothing special", "fine but forgettable"]
+services_good = ["outstanding", "friendly and fast", "attentive", "excellent"]
+services_bad = ["slow", "rude", "inattentive", "terrible"]
+extras = ["Would definitely come back.", "Will not return.", "Overpriced.",
+          "Great ambiance.", "Very noisy.", "Cozy atmosphere.", "Long wait times.",
+          "Perfect date spot.", "Good for groups.", "Parking was easy.", ""]
+
+restaurant_names = ["Bella Vita", "Sakura House", "The Grill Room", "Green Bowl",
+                    "Chez Marie", "Spice Route", "Noodle Bar", "Ocean Plate",
+                    "Fire & Stone", "The Garden Kitchen"]
+
+def make_reviews(n=200):
+    reviews = []
+    for i in range(n):
+        restaurant = random.choice(restaurant_names)
+        dish = random.choice(dishes)
+        sentiment = random.choices(["positive", "negative", "mixed"], weights=[0.5, 0.3, 0.2])[0]
+
+        if sentiment == "positive":
+            quality = random.choice(qualities_good)
+            service = random.choice(services_good)
+        elif sentiment == "negative":
+            quality = random.choice(qualities_bad)
+            service = random.choice(services_bad)
+        else:
+            quality = random.choice(qualities_mid)
+            service = random.choice(random.choice([services_good, services_bad]))
+
+        template = random.choice(review_templates)
+        review = template.format(dish=dish, quality=quality, service=service, extra=random.choice(extras))
+        reviews.append(f"Review {i+1} [{restaurant}]: {review}")
+    return reviews
+
+reviews = make_reviews(200)
+reviews_text = "\n".join(reviews)
+
+print(f"Reviews dataset: {len(reviews)} reviews, {len(reviews_text)} characters")
+print(f"\nSample reviews:")
+for r in reviews[:3]:
+    print(f"  {r}")
